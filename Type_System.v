@@ -1,5 +1,9 @@
 Require Export SfLib.
 
+Inductive T : Type :=
+ | T_Bool : T
+ | T_Env : T.
+
 Inductive term : Type :=
  | term_Valid_Claim   : term
  | term_Invalid_Claim : term
@@ -9,14 +13,27 @@ Inductive term : Type :=
  | term_Intersection  : term -> term -> term
  | term_Supported     : term -> term
  | term_Strategy      : term -> term
- | term_Function      : term -> term
  | term_Alternative   : term -> term -> term
- | term_Recursion     : term -> term -> term -> term.
+ | term_Function      : id -> T -> term -> term.
+
+Tactic Notation "term_cases" tactic(first) ident(c) :=
+ first;
+ [Case_aux c "term_Valid_Claim"
+ |Case_aux c "term_Invalid_Calim"
+ |Case_aux c "term_Evidence"
+ |Case_aux c "term_Undeveloped"
+ |Case_aux c "term_Condition"
+ |Case_aux c "term_Intersection"
+ |Case_aux c "term_Supported"
+ |Case_aux c "term_Strategy"
+ |Case_aux c "term_Alternative"
+ |Case_aux c "term_Function" ].
 
 
 Inductive bool_value : term -> Prop :=
  | true : bool_value term_Valid_Claim
- | false : bool_value term_Invalid_Claim.
+ | false : bool_value term_Invalid_Claim
+ | v_fun : forall x T t, bool_value (term_Function x T t).
 
 Hint Constructors bool_value.
 
@@ -69,9 +86,6 @@ Tactic Notation "reduction_cases" tactic(first) ident(c) :=
 
 Hint Constructors reduction.
 
-Inductive T : Type :=
- | T_Bool : T
- | T_Env : T.
 
 Inductive has_Type : term -> T -> Prop :=
  | T_TRE : has_Type term_Valid_Claim T_Bool
@@ -106,6 +120,7 @@ Tactic Notation "has_type_cases" tactic(first) ident(c) :=
 
 
 Hint Constructors has_Type.
+
 
 (* ------<<< Theorem progress >>>------ *)
 
