@@ -159,7 +159,7 @@ Inductive has_Type : context -> term -> T -> Prop :=
  | T_SPE : forall t1 t2 Ty, has_Type empty t1 Ty ->
                             has_Type empty t2 Ty ->
                             has_Type empty (term_Alternative t1 t2) Ty
- | T_Var : forall Gamma x Ty, Gamma x = Some Ty ->
+ | T_VAR : forall Gamma x Ty, Gamma x = Some Ty ->
                               has_Type Gamma (term_Var x) Ty
  | T_FUN : forall Gamma x T11 T12 t12,
              has_Type (extend Gamma x T11) t12 T12 ->
@@ -176,11 +176,28 @@ Tactic Notation "has_type_cases" tactic(first) ident(c) :=
  | Case_aux c "T_INS"
  | Case_aux c "T_SUP"
  | Case_aux c "T_STR"
- | Case_aux c "T_SPE"].
+ | Case_aux c "T_SPE"
+ | Case_aux c "T_VAR"
+ | Case_aux c "T_FUN"].
 
 
 Hint Constructors has_Type.
 
+(* ----- <<< Define Closed Variable >>>------*)
+Inductive appears_free_in : id -> term -> Prop :=
+ | afi_Var : forall x, appears_free_in x (term_Var x)
+ | afi_Function : forall x y T11 t12, y <> x ->
+                                      appears_free_in x t12 ->
+                                      appears_free_in x (term_Function y T11 t12).
+
+Tactic Notation "afi_cases" tactic(first) ident(c) :=
+ first;
+ [Case_aux c "afi_Var"
+ |Case_aux c "afi_Function"]. 
+
+Hint Constructors appears_free_in.
+
+Definition closed (t:term) := forall x, ~ appears_free_in x t.
 
 (* ------<<< Theorem progress >>>------ *)
 
