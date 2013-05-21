@@ -2,7 +2,9 @@ Require Export SfLib.
 
 Inductive T : Type :=
  | T_Bool : T
- | T_Env : T.
+ | T_Env : T
+ | T_Fun : T -> T -> T.
+
 
 Inductive term : Type :=
  | term_Valid_Claim   : term
@@ -14,6 +16,7 @@ Inductive term : Type :=
  | term_Supported     : term -> term
  | term_Strategy      : term -> term
  | term_Alternative   : term -> term -> term
+ | term_Var           : id -> term
  | term_Function      : id -> T -> term -> term.
 
 Tactic Notation "term_cases" tactic(first) ident(c) :=
@@ -27,15 +30,31 @@ Tactic Notation "term_cases" tactic(first) ident(c) :=
  |Case_aux c "term_Supported"
  |Case_aux c "term_Strategy"
  |Case_aux c "term_Alternative"
+ |Case_aux c "term_Var"
  |Case_aux c "term_Function" ].
 
 
 Inductive bool_value : term -> Prop :=
- | true : bool_value term_Valid_Claim
- | false : bool_value term_Invalid_Claim
- | v_fun : forall x T t, bool_value (term_Function x T t).
+ | b_true : bool_value term_Valid_Claim
+ | b_false : bool_value term_Invalid_Claim.
 
 Hint Constructors bool_value.
+
+Fixpoint subst (s:term) (x:id) (t:term) : term :=
+ match t with
+  | term_Valid_Claim => term_Valid_Claim
+  | term_Invalid_Claim => term_Invalid_Claim
+  | term_Evidence => term_Evidence
+  | term_Undeveloped => term_Undeveloped
+  | term_Condition t => term_Condition t
+  | term_Intersection t1 t2 => term_Intersection t1 t2
+  | term_Supported t => term_Supported t
+  | term_Strategy t => term_Strategy t
+  | term_Alternative t1 t2 => term_Alternative t1 t2
+  | term_Var x => term_Var x
+  | term_Function x' Ty t1 => term_Function x' Ty (subst s x t1)
+ end.
+
 
 Reserved Notation "t1 '==>' t2" (at level 40).
 
@@ -57,8 +76,11 @@ Inductive reduction : term -> term -> Prop :=
  | E_SPT : forall t, term_Alternative term_Valid_Claim t ==> term_Valid_Claim
  | E_SPF : forall t, term_Alternative term_Invalid_Claim t ==> term_Supported t
  | E_SPE : forall t1 t1' t2, t1 ==> t1' -> (term_Alternative t1 t2) ==> term_Alternative t1' t2
+ | E_FUN : forall t t' x x' Ty, t ==> t' -> (term_Function x' Ty (term_Var x)) ==> t'
 
 where "t1 '==>' t2" := (reduction t1 t2).
+
+
 
 (* | E_SPE2 : forall t1 t2' t2, t2 ==> t2' -> (term_Alternative t1 t2) ==> term_Alternative t1 t2'*)
 
@@ -80,31 +102,69 @@ Tactic Notation "reduction_cases" tactic(first) ident(c) :=
  | Case_aux c "E_INS"
  | Case_aux c "E_SPT"
  | Case_aux c "E_SPF"
- | Case_aux c "E_SPE"].
+ | Case_aux c "E_SPE"
+ | Case_aux c "E_FUN"].
 
 
 
 Hint Constructors reduction.
 
+(* Define Gamma Environment *)
+Definition context := partial_map T.
 
-Inductive has_Type : term -> T -> Prop :=
- | T_TRE : has_Type term_Valid_Claim T_Bool
- | T_FLS : has_Type term_Invalid_Claim T_Bool
- | T_EVI : has_Type term_Evidence T_Bool
- | T_UND : has_Type term_Undeveloped T_Bool
- | T_CON : forall t, has_Type term_Evidence T_Bool ->
-                     has_Type t T_Bool ->
-                     has_Type (term_Condition t) T_Bool
- | T_INS : forall t1 t2 Ty, has_Type t1 Ty ->
-                            has_Type t2 Ty ->
-                            has_Type (term_Intersection t1 t2) Ty
- | T_SUP : forall t Ty, has_Type t Ty ->
-                        has_Type (term_Supported t) Ty
- | T_STR : forall t Ty, has_Type t Ty ->
-                        has_Type (term_Strategy t) Ty
- | T_SPE : forall t1 t2 Ty, has_Type t1 Ty ->
-                            has_Type t2 Ty ->
-                            has_Type (term_Alternative t1 t2) Ty.
+Module Context.
+
+Definition partial_map (A:Type) := id -> option A.
+Definition empty {A:Type} : partial_map A := (fun _ => None).
+Definition extend {A:Type}  (Gamma : partial_map A) (x:id) (T : A) :=
+  fun x' => if beq_id x x' then Some T else Gamma x'.
+
+Lemma extend_eq : forall A (ctxt: partial_map A) x T,
+   (extend ctxt x T) x = Some T.
+Proof.
+intros.
+unfold extend.
+rewrite <- beq_id_refl.
+auto.
+Qed.
+
+Lemma extend_neq : forall A (ctxt: partial_map A) x1 T x2,
+ beq_id x2 x1 = false ->
+      (extend ctxt x2 T) x1 = ctxt x1.
+Proof.
+intros.
+unfold extend.
+rewrite H.
+auto.
+Qed.
+
+End Context.
+
+
+Inductive has_Type : context -> term -> T -> Prop :=
+ | T_TRE : has_Type empty term_Valid_Claim T_Bool
+ | T_FLS : has_Type empty term_Invalid_Claim T_Bool
+ | T_EVI : has_Type empty term_Evidence T_Bool
+ | T_UND : has_Type empty term_Undeveloped T_Bool
+ | T_CON : forall t, has_Type empty term_Evidence T_Bool ->
+                     has_Type empty t T_Bool ->
+                     has_Type empty (term_Condition t) T_Bool
+ | T_INS : forall t1 t2 Ty, has_Type empty t1 Ty ->
+                            has_Type empty t2 Ty ->
+                            has_Type empty (term_Intersection t1 t2) Ty
+ | T_SUP : forall t Ty, has_Type empty t Ty ->
+                        has_Type empty (term_Supported t) Ty
+ | T_STR : forall t Ty, has_Type empty t Ty ->
+                        has_Type empty (term_Strategy t) Ty
+ | T_SPE : forall t1 t2 Ty, has_Type empty t1 Ty ->
+                            has_Type empty t2 Ty ->
+                            has_Type empty (term_Alternative t1 t2) Ty
+ | T_Var : forall Gamma x Ty, Gamma x = Some Ty ->
+                              has_Type Gamma (term_Var x) Ty
+ | T_FUN : forall Gamma x T11 T12 t12,
+             has_Type (extend Gamma x T11) t12 T12 ->
+             has_Type Gamma (term_Function x T11 t12) (T_Fun T11 T12).
+
 
 Tactic Notation "has_type_cases" tactic(first) ident(c) :=
  first;
