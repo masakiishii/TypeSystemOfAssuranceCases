@@ -183,7 +183,7 @@ Tactic Notation "has_type_cases" tactic(first) ident(c) :=
 
 Hint Constructors has_Type.
 
-(* ----- <<< Define Closed Variable >>>------*)
+(* ----- <<< Define Closed Variable >>>------ *)
 Inductive appears_free_in : id -> term -> Prop :=
  | afi_Var : forall x, appears_free_in x (term_Var x)
  | afi_Function : forall x y T11 t12, y <> x ->
@@ -218,6 +218,22 @@ apply not_eq_beq_id_false in H.
 rewrite extend_neq in H7; assumption.
 Qed.
 
+(*------<<< typable empty closed >>>--------*)
+Corollary typable_empty_closed : forall t Ty,
+                                   has_Type empty t Ty ->
+                                   closed t.
+Proof.
+intros t Ty H x H1.
+remember (@empty T) as Gamma.
+assert (exists t' : _, Gamma x = Some t').
+apply free_in_context with t Ty.
+assumption.
+assumption.
+
+inversion H0.
+rewrite HeqGamma in H2.
+inversion H2.
+Qed.
 
 (* ------<<< Theorem progress >>>------ *)
 
@@ -259,7 +275,7 @@ SCase "T_INTT".
 exists t2.
 auto.
 
-SCase "T_INTF".
+SCase "T_Intf".
 exists term_Invalid_Claim.
 auto.
 
