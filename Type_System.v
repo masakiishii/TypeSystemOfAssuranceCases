@@ -199,6 +199,26 @@ Hint Constructors appears_free_in.
 
 Definition closed (t:term) := forall x, ~ appears_free_in x t.
 
+(* ------<<< permutation >>>------- *)
+
+Lemma free_in_context : forall x t T Gamma,
+                          appears_free_in x t ->
+                          has_Type Gamma t T ->
+                          exists T', Gamma x = Some T'.
+Proof.
+intros.
+generalize dependent Gamma. 
+generalize dependent T0.
+afi_cases (induction H) Case;
+  intros; try solve [inversion H0; eauto].
+Case "afi_Function".
+inversion H1; subst.
+apply IHappears_free_in in H7.
+apply not_eq_beq_id_false in H.
+rewrite extend_neq in H7; assumption.
+Qed.
+
+
 (* ------<<< Theorem progress >>>------ *)
 
 Theorem progress : forall t Ty, has_Type t Ty -> bool_value t \/ exists t', t ==> t'.
