@@ -3,7 +3,7 @@ Require Export SfLib.
 Inductive T : Type :=
  | T_Bool : T
  | T_Env : T
- | T_Fun : T -> T -> T.
+ | T_Function : T -> T -> T.
 
 
 Inductive term : Type :=
@@ -17,7 +17,8 @@ Inductive term : Type :=
  | term_Strategy      : term -> term
  | term_Alternative   : term -> term -> term
  | term_Var           : id -> term
- | term_Function      : id -> T -> term -> term.
+ | term_Function_app      : term -> term -> term
+ | term_Function          : id -> T -> term -> term.
 
 Tactic Notation "term_cases" tactic(first) ident(c) :=
  first;
@@ -31,6 +32,7 @@ Tactic Notation "term_cases" tactic(first) ident(c) :=
  |Case_aux c "term_Strategy"
  |Case_aux c "term_Alternative"
  |Case_aux c "term_Var"
+ |Case_aux c "term_Function_app"
  |Case_aux c "term_Function" ].
 
 
@@ -51,8 +53,9 @@ Fixpoint subst (s:term) (x:id) (t:term) : term :=
   | term_Supported t => term_Supported t
   | term_Strategy t => term_Strategy t
   | term_Alternative t1 t2 => term_Alternative t1 t2
-  | term_Var x => term_Var x
-  | term_Function x' Ty t1 => term_Function x' Ty (subst s x t1)
+  | term_Var x => s
+  | term_Function_app t1 t2 => term_Function_app (subst s x t1) (subst s x t2)
+  | term_Function x' T t1 => term_Function x' T t1
  end.
 
 
@@ -76,7 +79,7 @@ Inductive reduction : term -> term -> Prop :=
  | E_SPT : forall t, term_Alternative term_Valid_Claim t ==> term_Valid_Claim
  | E_SPF : forall t, term_Alternative term_Invalid_Claim t ==> term_Supported t
  | E_SPE : forall t1 t1' t2, t1 ==> t1' -> (term_Alternative t1 t2) ==> term_Alternative t1' t2
- | E_FUN : forall t t' x x' Ty, t ==> t' -> (term_Function x' Ty (term_Var x)) ==> t'
+ | E_FUN : forall s T_Env F x, (term_Function_app (term_Function s T_Env F) x ) ==> (subst x s F)
 
 where "t1 '==>' t2" := (reduction t1 t2).
 
@@ -161,9 +164,13 @@ Inductive has_Type : context -> term -> T -> Prop :=
                             has_Type empty (term_Alternative t1 t2) Ty
  | T_VAR : forall Gamma x Ty, Gamma x = Some Ty ->
                               has_Type Gamma (term_Var x) Ty
- | T_FUN : forall Gamma x T11 T12 t12,
-             has_Type (extend Gamma x T11) t12 T12 ->
-             has_Type Gamma (term_Function x T11 t12) (T_Fun T11 T12).
+ | T_FUN : forall Gamma s T_Env T_Bool F,
+             has_Type (extend Gamma s T_Env) F T_Bool ->
+             has_Type Gamma (term_Function s T_Env F) (T_Function T_Env T_Bool)
+ | T_APP : forall T_Env T_Bool Gamma t1 t2,
+             has_Type Gamma t1 (T_Function T_Env T_Bool) ->
+             has_Type Gamma t2 T_Env ->
+             has_Type Gamma (term_Function_app t1 t2) T_Bool.
 
 
 Tactic Notation "has_type_cases" tactic(first) ident(c) :=
@@ -178,7 +185,8 @@ Tactic Notation "has_type_cases" tactic(first) ident(c) :=
  | Case_aux c "T_STR"
  | Case_aux c "T_SPE"
  | Case_aux c "T_VAR"
- | Case_aux c "T_FUN"].
+ | Case_aux c "T_FUN"
+ | Case_aux c "T_APP"].
 
 
 Hint Constructors has_Type.
